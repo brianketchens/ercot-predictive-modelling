@@ -3,72 +3,72 @@ import pandas as pd
 import numpy as np
 import holidays
 
-def build_advanced_feature_pipeline(weather_path, ercot_path, output_path):
-    """Merges a decade of weather and load matrices, and engineers advanced
-
-    features including holidays, solar indexes, and structural time-trends.
-    """
-    print("Initializing 10-Year Advanced Feature Engineering Pipeline...")
+def advanced_feature_engineering_pipeline():
+    print("🛠️ Initiating Phase 2 Advanced Feature Engineering Engine...")
     
-    # 1. LOAD RAW DATASETS
-    if not os.path.exists(weather_path) or not os.path.exists(ercot_path):
-        raise FileNotFoundError("Missing raw decade datasets. Ensure Steps 1 and 2 ran successfully!")
-        
-    df_weather = pd.read_csv(weather_path, parse_dates=["timestamp"], index_col="timestamp")
-    df_ercot = pd.read_csv(ercot_path, parse_dates=["timestamp"], index_col="timestamp")
+    # 1. Load the new expanded raw weather dataset
+    weather_path = "data/raw/houston_weather_expanded.csv"
+    if not os.path.exists(weather_path):
+        raise FileNotFoundError(f"Missing required expanded weather file: {weather_path}")
     
-    # 2. SEAMLESS TIME-SERIES MERGE
-    print("Aligning weather metrics with grid load timelines...")
-    # Inner join ensures we only keep hours where BOTH datasets have records
-    df = df_ercot.join(df_weather, how="inner")
-    print(f"  Synchronized matrix contains {len(df)} total operational hours.")
+    df = pd.read_csv(weather_path)
+    df['timestamp'] = pd.to_datetime(df['timestamp'])
     
-    # 3. ADVANCED CALENDAR & HOLIDAY ENGINEERING
-    print("Building temporal features and federal holiday mappings...")
-    df["hour"] = df.index.hour
-    df["month"] = df.index.month
-    df["day_of_week"] = df.index.dayofweek
-    df["is_weekend"] = df["day_of_week"].isin([5, 6]).astype(int)
+    # Sort chronologically to safeguard time-series window operations
+    df = df.sort_values('timestamp').reset_index(drop=True)
     
-    # Initialize the automated US holiday lookups spanning our decade
-    us_holidays = holidays.US(years=range(2016, 2027))
-    # Map each timestamp's exact date to a binary 1 or 0 flag
-    df["is_holiday"] = [1 if str(date.date()) in us_holidays else 0 for date in df.index]
+    # 2. Extract Base Temporal Vectors
+    df['hour'] = df['timestamp'].dt.hour
+    df['day_of_week'] = df['timestamp'].dt.dayofweek
+    df['month'] = df['timestamp'].dt.month
+    df['year'] = df['timestamp'].dt.year
+    df['day_of_year'] = df['timestamp'].dt.dayofyear
     
-    # 4. DOMAIN THERMODYNAMIC ENGINEERING (Heating/Cooling Degree Hours)
-    # Energy demand responds non-linearly to temperature. 
-    # Human comfort baseline sits around 65°F. 
-    df["cooling_degree_hours"] = (df["temperature_f"] - 65).clip(lower=0)
-    df["heating_degree_hours"] = (65 - df["temperature_f"]).clip(lower=0)
+    # 3. ADVANCED METEOROLOGICAL TRANSFORMATIONS
     
-    # 5. INDUSTRIAL TIME-TREND (Economic / Population Growth Factor)
-    # Creates a linear increment column counting up from hour 0 to the final hour.
-    # This acts as an architectural hook allowing LightGBM to scale predictions upward over time.
-    df["grid_growth_trend"] = np.arange(len(df))
+    # A. Humidex / Realized Thermodynamic Load
+    # Captures the compounding non-linear impact of moisture on cooling demand
+    # Approximated formula for heat-sensation index using dew point
+    e = 6.11 * np.exp(5417.7530 * ((1/273.16) - (1 / (273.15 + (df['dew_point_f'] - 32) * 5/9))))
+    h = (5/9) * (e - 10.0)
+    df['humidex'] = df['temp_f'] + h
     
-    # 6. TIME-LAGGED BACKTRACKS (Captures thermal inertia / momentum)
-    print("Calculating historical load lag signatures...")
-    # Tells the model what the grid load was exactly 24 hours ago and 1 week ago
-    df["load_lag_24h"] = df["coast_load_mw"].shift(24)
-    df["load_lag_168h"] = df["coast_load_mw"].shift(168)
+    # B. Effective Solar Penetration Matrix
+    # Scales Irradiance inversely with Cloud Cover to isolate building solar heat gain
+    df['effective_solar_gain'] = df['direct_normal_irradiance_wm2'] * (1 - (df['cloud_cover_pct'] / 100))
     
-    # 7. CLEANUP & SAVE
-    # Drop rows at the very beginning of 2016 that don't have lag values yet
-    initial_len = len(df)
-    df.dropna(inplace=True)
-    print(f"  Dropped {initial_len - len(df)} initialization rows due to lag horizons.")
+    # C. Kinetic Wind Cooling Vector
+    # Captures extreme wind-chill structural heat loss during winter anomalies
+    df['kinetic_cooling_index'] = df['temp_f'] * (1 / (1 + np.log1p(df['wind_speed_mph'])))
     
-    # Save into the processed directory warehouse
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    df.to_csv(output_path)
-    print(f"✅ Success! Advanced feature matrix generated: {output_path}")
-    print("\nAvailable features for your Machine Learning model:")
-    print(list(df.columns))
-    return df
+    # D. Adaptive Thermal Adaptation Delta
+    # Models consumer threshold adaptation relative to a rolling 7-day average
+    df['rolling_7d_temp_mean'] = df['temp_f'].rolling(window=168, min_periods=1).mean()
+    df['thermal_shock_delta'] = df['temp_f'] - df['rolling_7d_temp_mean']
+    
+    # E. Standard Baseline Thermodynamic Response (Base 65°F)
+    df['cooling_degree_hours'] = (df['temp_f'] - 65).clip(lower=0)
+    df['heating_degree_hours'] = (65 - df['temp_f']).clip(lower=0)
+    
+    # 4. CALENDAR ANOMALIES & DYNAMIC INSTITUTIONAL FLAGS
+    us_holidays = holidays.US(years=range(2016, 2026))
+    df['is_holiday'] = df['timestamp'].dt.date.apply(lambda x: 1 if x in us_holidays else 0)
+    
+    # Pre-holiday ramp down (flags the day prior to major baseline shifts)
+    df['is_pre_holiday'] = df['is_holiday'].shift(-24).fillna(0).astype(int)
+    
+    # 5. STRUCTURAL GRID GROWTH TREND
+    # Continuous index mapping long-term macro population/economic expansion
+    df['grid_growth_trend'] = np.arange(len(df))
+    
+    # Save the expanded engineering matrix to processed directory
+    output_dir = "data/processed"
+    os.makedirs(output_dir, exist_ok=True)
+    output_path = os.path.join(output_dir, "master_features_expanded.csv")
+    
+    df.to_csv(output_path, index=False)
+    print(f"✅ Feature Engineering complete. Matrix Shape: {df.shape}")
+    print(f"💾 Processed features saved directly to: {output_path}")
 
 if __name__ == "__main__":
-    weather_input = os.path.join("data", "raw", "houston_weather_2016_2025.csv")
-    ercot_input = os.path.join("data", "raw", "ercot_load_2016_2025.csv")
-    processed_output = os.path.join("data", "processed", "engineered_energy_features.csv")
-    
-    build_advanced_feature_pipeline(weather_input, ercot_input, processed_output)
+    advanced_feature_engineering_pipeline()
