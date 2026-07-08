@@ -7,35 +7,36 @@ from sklearn.metrics import root_mean_squared_error, r2_score
 import lightgbm as lgb
 
 def run_decade_validation_engine(data_path):
-    """Executes a robust walk-forward cross-validation loop over the 10-year
-
-    dataset, comparing a baseline Ridge model against an advanced LightGBM model.
-    """
-    print("Loading 10-Year Master Feature Matrix...")
+    print("🏋️ Loading Phase 2 Aligned 10-Year Master Feature Matrix...")
+    if not os.path.exists(data_path):
+        raise FileNotFoundError(f"Missing master feature dataset: {data_path}")
+        
+    # Read CSV and set timestamp column back as index natively 
     df = pd.read_csv(data_path, parse_dates=["timestamp"], index_col="timestamp")
+    df = df.sort_index()
     
+    # Clean out any boundary or alignment artifacts
+    df = df.dropna(subset=["coast_load_mw"])
+
     # 1. ISOLATE TARGET AND FEATURES
-    # Our target variable is the actual Houston coast grid load in Megawatts
     y = df["coast_load_mw"]
     
-    # Drop columns that are targets, or indexes that shouldn't be trained on
-    X = df.drop(columns=["coast_load_mw"])
+    # Drop target and remove the linear trend feature to safeguard the tree algorithms
+    drop_cols = ["coast_load_mw", "grid_growth_trend"]
+    X = df.drop(columns=[col for col in drop_cols if col in df.columns])
     
     print(f"Matrix shape: {X.shape[0]} rows across {X.shape[1]} advanced features.")
     
-    # 2. INITIALIZE TIME-SERIES SPLITTER (Walk-Forward Validation)
-    # n_splits=4 creates 5 sequential chronological windows over our decade
+    # 2. INITIALIZE TIME-SERIES SPLITTER (Expanding Walk-Forward Validation)
     tscv = TimeSeriesSplit(n_splits=4)
     
-    # Tracking buckets for our cross-validation performance metrics
     baseline_rmses, baseline_r2s = [], []
     champion_rmses, champion_r2s = [], []
     
-    print("\nStarting Walk-Forward Cross-Validation Loop...")
+    print("\nStarting Phase 2 Walk-Forward Cross-Validation Loop...")
     print("-" * 65)
     
     for fold, (train_idx, test_idx) in enumerate(tscv.split(X)):
-        # Chronological slicing prevents data leakage
         X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
         y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
         
@@ -49,16 +50,24 @@ def run_decade_validation_engine(data_path):
         baseline_model.fit(X_train, y_train)
         base_preds = baseline_model.predict(X_test)
         
-        # 4. TRAIN CHAMPION (LightGBM Gradient Boosting)
-        # We adjust hyperparameters slightly to account for the massive decade timeline
+        # 4. TRAIN CHAMPION (LightGBM Gradient Boosting - Upgraded Interaction Capacity)
         champion_model = lgb.LGBMRegressor(
-            n_estimators=200,
-            learning_rate=0.05,
-            num_leaves=31,
+            n_estimators=1500,         # Deep iteration capacity
+            learning_rate=0.03,        # Smaller shrink rate for robust fitting
+            num_leaves=63,             # High leaf count to capture non-linear weather equations
+            max_depth=8,               # Regularization limit
+            min_child_samples=20,
             random_state=42,
+            n_jobs=-1,
             verbose=-1
         )
-        champion_model.fit(X_train, y_train)
+        
+        # Implement early stopping natively against the fold evaluation subset
+        champion_model.fit(
+            X_train, y_train,
+            eval_set=[(X_test, y_test)],
+            callbacks=[lgb.early_stopping(stopping_rounds=50, verbose=False)]
+        )
         champ_preds = champion_model.predict(X_test)
         
         # 5. SCORE THE FOLD
@@ -86,10 +95,10 @@ def run_decade_validation_engine(data_path):
     print(f"  -> Mean R² Score: {np.mean(champion_r2s):.4f}")
     print("-" * 65)
     
-    # Calculate performance jump
     rmse_improvement = ((np.mean(baseline_rmses) - np.mean(champion_rmses)) / np.mean(baseline_rmses)) * 100
     print(f"Machine Learning slashed error by {rmse_improvement:.2f}% compared to baseline!")
 
 if __name__ == "__main__":
-    processed_matrix = os.path.join("data", "processed", "engineered_energy_features.csv")
+    # Points directly to your fresh Phase 2 master file
+    processed_matrix = os.path.join("data", "processed", "master_features_expanded.csv")
     run_decade_validation_engine(data_path=processed_matrix)
