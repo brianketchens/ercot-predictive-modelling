@@ -57,7 +57,7 @@ The engineered features allow both models to capture the underlying structural p
 | **Ridge Regression Baseline** | 796.24 Megawatts | 0.9210 | Baseline |
 | **LightGBM Regressor (Champion)** | **752.74 Megawatts** | **0.9283** | ⬇️ 5.46% |
 
-## Key Analytical Takeaways
+## &#128273; Key Analytical Takeaways
 * **Macro Explanatory Power:** Achieving an $R^2$
 of 0.9283 over a full decade demonstrates that the feature matrix successfully captures nearly 93% of the true variance in grid demand through varying economic climates and weather shifts.
 
