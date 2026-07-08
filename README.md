@@ -1,8 +1,8 @@
 # ERCOT Houston Grid Load & Weather Forecasting Pipeline
 
-An end-to-end machine learning and data engineering pipeline that ingests a full decade (2016–2025) of historical actual power grid load data and localized hourly weather data to forecast energy demand in the ERCOT Houston (Coast) region.
+An end-to-end machine learning and data engineering pipeline that ingests a full decade (2016–2025) of historical grid load data and localized hourly weather data to forecast energy demand in the ERCOT Houston (Coast) region.
 
-This project evaluates a baseline Ridge Regression model against an advanced LightGBM Gradient Boosting architecture using a robust, data-leakage-free walk-forward time-series validation strategy.
+This project evaluates a baseline Ridge Regression model against an advanced LightGBM gradient boosting architecture using a robust, leakage-free walk-forward time-series validation strategy.
 
 ---
 
@@ -23,73 +23,83 @@ ercot-energy-project/
 │   └── train.py                       # Walk-forward time-series training loop
 └── README.md
 ```
+
+---
+
 ## 🛠️ Feature Engineering Domain Mapping
+
 To model the complex, non-linear relationships governing grid load, the feature engine transforms raw temporal and weather observations into highly predictive domain indicators:
 
-* **Thermodynamic Response:** Computes Cooling Degree Hours (CDH) and Heating Degree Hours (HDH) using a base human-comfort threshold of 65°F to capture the non-linear surge in HVAC demand during temperature extremes.
+- **Thermodynamic Response:** Computes Cooling Degree Hours (CDH) and Heating Degree Hours (HDH) using a base human-comfort threshold of 65 °F to capture the non-linear surge in HVAC demand during temperature extremes.
+- **Solar & Cloud Interactions:** Integrates shortwave radiation (W/m²) and cloud cover percentage to account for solar heat gain on buildings.
+- **Calendar & Institutional Anomalies:** Uses the `holidays` engine to dynamically flag U.S. federal holidays across the decade, accounting for institutional power draw drops on weekdays such as Thanksgiving or Christmas.
+- **Structural Grid Growth Trend:** Introduces a continuous time-elapsed index (`grid_growth_trend`) that allows the tree-based models to scale predictions against Houston's economic and population expansion over the 10-year horizon.
+- **Autoregressive Thermal Inertia:** Generates 24-hour and 168-hour (1-week) target lag horizons to capture grid momentum and cyclical weekly patterns.
 
-* **Solar & Cloud Interactions:** Integrates Shortwave Radiation (W/m 
-2
- ) and Cloud Cover Percentage to account for solar heat gain on buildings.
+---
 
-* **Calendar & Institutional Anomalies:** Integrates the holidays engine to dynamically flag U.S. Federal Holidays across the decade, accounting for institutional power draw drops on weekdays like Thanksgiving or Christmas.
-
-* **Structural Grid Growth Trend:** Introduces a continuous time-elapsed index (grid_growth_trend) that empowers the machine learning trees to model and scale predictions against Houston's massive economic and population expansion over the 10-year horizon.
-
-* **Autoregressive Thermal Inertia:** Generates 24-hour and 168-hour (1-week) target lag horizons to lock onto grid momentum and cyclical weekly patterns.
-  
-  
 ## 🚦 Cross-Validation Strategy
 
-Standard random K-Fold cross-validation introduces severe chronological data leakage in time-series forecasting. To ensure real-world viability, this pipeline enforces a Walk-Forward Time-Series Split (TimeSeriesSplit) across 4 sequential rolling folds:
+Standard random K-Fold cross-validation introduces severe chronological data leakage in time-series forecasting. To ensure real-world viability, this pipeline enforces a walk-forward time-series split (`TimeSeriesSplit`) across four sequential rolling folds:
 
-   * **Fold 1:** Train [2016-01 to 2018-07] ➡️ Test [2018-07 to 2020-05]
-   * **Fold 2:** Train [2016-01 to 2020-05] ➡️ Test [2020-05 to 2022-04] (Includes Winter Storm Uri)
-   * **Fold 3:** Train [2016-01 to 2022-04] ➡️ Test [2022-04 to 2024-02]
-   * **Fold 4:** Train [2016-01 to 2024-02] ➡️ Test [2024-02 to 2025-12]
-  
+| Fold | Training Window | Test Window | Notes |
+| :--- | :--- | :--- | :--- |
+| 1 | 2016-01 → 2018-07 | 2018-07 → 2020-05 | |
+| 2 | 2016-01 → 2020-05 | 2020-05 → 2022-04 | Includes Winter Storm Uri |
+| 3 | 2016-01 → 2022-04 | 2022-04 → 2024-02 | |
+| 4 | 2016-01 → 2024-02 | 2024-02 → 2025-12 | |
+
+---
+
 ## 📊 Experimental Results & Model Performance
 
-The engineered features allow both models to capture the underlying structural patterns of the grid with exceptional fidelity:
+The engineered features allow both models to capture the underlying structural patterns of the grid with high fidelity:
 
-| Model Optimization | Mean Root Mean Squared Error (RMSE) | Mean Coeff. of Determination ($R^2$) | Error Slashed |
+| Model | Mean RMSE (MW) | Mean R² | Error Reduction |
 | :--- | :--- | :--- | :--- |
-| **Ridge Regression Baseline** | 796.24 Megawatts | 0.9210 | Baseline |
-| **LightGBM Regressor (Champion)** | **752.74 Megawatts** | **0.9283** | ⬇️ 5.46% |
+| Ridge Regression (baseline) | 796.24 | 0.9210 | — |
+| **LightGBM Regressor (champion)** | **752.74** | **0.9283** | ⬇️ 5.46% |
 
-## &#128273; Key Analytical Takeaways
-* **Macro Explanatory Power:** Achieving an $R^2$
-of 0.9283 over a full decade demonstrates that the feature matrix successfully captures nearly 93% of the true variance in grid demand through varying economic climates and weather shifts.
+---
 
-* **Operational Economic Impact:** Slashed the average forecasting error by 5.46% (saving over 43 MW of average hourly uncertainty). In real-world utility operations, this tighter error bound directly translates to reduced reliance on expensive, high-emission peaker plants.
+## 🔑 Key Analytical Takeaways
 
-* **Resiliency Testing (Fold 2 Anomaly):** During the Fold 2 window (2020-05 to 2022-04), which contained the historic February 2021 Winter Storm Uri grid collapse, both models experienced lower $R^ 
-2$
-  scores (~0.88-0.89). Because actual load plummeted due to forced system blackouts while extreme weather inputs dictated record demand, the rigid linear baseline slightly outperformed LightGBM's complex decision trees. This demonstrates a classic real-world overfitting challenge during unprecedented grid structural anomalies.
+- **Macro explanatory power:** An R² of 0.9283 across a full decade demonstrates that the feature matrix captures nearly 93% of the true variance in grid demand through varying economic climates and weather shifts.
+- **Operational economic impact:** Reducing average forecasting error by 5.46% eliminates roughly 43 MW of average hourly uncertainty. In utility operations, a tighter error bound translates directly into reduced reliance on expensive, high-emission peaker plants.
+- **Resiliency testing (Fold 2 anomaly):** The Fold 2 test window (2020-05 → 2022-04) contains the February 2021 Winter Storm Uri grid collapse, and both models posted lower R² scores (~0.88–0.89). Because actual load plummeted under forced blackouts while extreme weather inputs implied record demand, the rigid linear baseline slightly outperformed LightGBM's decision trees — a classic illustration of tree-based overfitting during unprecedented structural anomalies.
+
+---
 
 ## 🚀 How to Execute the Pipeline
 
-1. Environment Setup
-> Clone the repository and spin up your virtual environment:
+### 1. Environment setup
 
-```
-Bash
+Clone the repository and create a virtual environment:
+
+```bash
 python -m venv .venv
-source .venv/Scripts/activate  # Or relevant OS command
+source .venv/Scripts/activate   # macOS/Linux: source .venv/bin/activate
 ```
-> Install dependencies
-```
+
+Install dependencies:
+
+```bash
 pip install pandas numpy scikit-learn lightgbm openpyxl holidays requests
 ```
-2. Sourcing Raw Data  
-> Download the annual ERCOT Hourly Load Archive sheets (2016 through 2025) from the ERCOT Grid Hourly Load Archives.
->Deposit the downloaded .xlsx/.xls files directly into:
->data/ercot_historical_data_files/
 
-3. Running the Pipeline End-to-End
-Execute the scripts in order within your terminal:
+### 2. Source the raw data
+
+Download the annual ERCOT hourly load archive sheets (2016 through 2025) from the ERCOT Grid Hourly Load Archives, then place the `.xlsx` / `.xls` files directly into:
+
+```text
+data/ercot_historical_data_files/
 ```
-Bash
+
+### 3. Run the pipeline end to end
+
+Execute the scripts in order:
+
+```bash
 # Ingest 10 years of hourly Houston weather data (Open-Meteo API)
 python src/ingest_weather.py
 
