@@ -52,11 +52,15 @@ def run_decade_validation_engine(data_path):
         
         # 4. TRAIN CHAMPION (LightGBM Gradient Boosting - Upgraded Interaction Capacity)
         champion_model = lgb.LGBMRegressor(
-            n_estimators=1500,         # Deep iteration capacity
-            learning_rate=0.03,        # Smaller shrink rate for robust fitting
-            num_leaves=63,             # High leaf count to capture non-linear weather equations
-            max_depth=8,               # Regularization limit
-            min_child_samples=20,
+          n_estimators=1500,         # More trees to allow for a slower learning rate
+            learning_rate=0.015,       # Slower learning rate for finer, stable adjustments
+            num_leaves=45,             # Reduced from 63 to lower individual leaf complexity
+            max_depth=7,               # Regularization limit to prevent deep runaway branches
+            min_child_samples=35,      # Forces leaves to cover more hours (smoothes out anomalies)
+            subsample=0.7,             # Row fraction sample per tree to add variance
+            colsample_bytree=0.7,      # Feature fraction sample per tree
+            reg_alpha=0.5,             # L1 regularization to suppress minor nodes
+            reg_lambda=1.5,            # L2 regularization to smooth out extreme peaks
             random_state=42,
             n_jobs=-1,
             verbose=-1
@@ -97,6 +101,22 @@ def run_decade_validation_engine(data_path):
     
     rmse_improvement = ((np.mean(baseline_rmses) - np.mean(champion_rmses)) / np.mean(baseline_rmses)) * 100
     print(f"Machine Learning slashed error by {rmse_improvement:.2f}% compared to baseline!")
+
+    # === UPDATED: ADVANCED FEATURE IMPORTANCE EVALUATION INDEX ===
+    importance_df = pd.DataFrame({
+        'feature': list(X.columns),  # Pulls directly from the X matrix columns
+        'importance_gain': champion_model.booster_.feature_importance(importance_type='gain')
+    }).sort_values('importance_gain', ascending=False)
+    
+    # Normalize to a percentage scale for easier mental mapping
+    total_gain = importance_df['importance_gain'].sum()
+    importance_df['relative_contribution_pct'] = (importance_df['importance_gain'] / total_gain) * 100
+    
+    print("\n==================================================")
+    print("🔥 METEOROLOGICAL FEATURE IMPORTANCE CARD (BY TOTAL GAIN)")
+    print("==================================================")
+    print(importance_df.to_string(index=False, float_format=lambda x: f"{x:.2f}%" if x < 100 else f"{x:.2f}"))
+    print("==================================================")
 
 if __name__ == "__main__":
     # Points directly to your fresh Phase 2 master file
