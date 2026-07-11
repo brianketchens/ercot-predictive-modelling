@@ -11,10 +11,17 @@ The project runs in two phases. **Phase 1** establishes a high-accuracy baseline
 
 ## 📊 Interactive Dashboards
 
-Two live, interactive dashboards let you explore the model and the underlying grid data directly in the browser — no setup required.
+Two live, interactive dashboards let you explore the model and the underlying grid data directly in the browser — no setup required. **Click either image to open the live version.**
 
-- **[Streamlit — Grid Insights Engine](https://ercot-predictive-modelling-pzanfe9eeappdcuqskncsn9.streamlit.app/)** · An operations control-room view built on the Phase 2 model: pick any day in the Feb 2024 – Dec 2025 hold-out window and compare the actual grid load against the champion LightGBM and baseline Ridge forecasts hour by hour, with a live feature-importance card and downloadable validation matrix. All KPIs are computed live from the model's own predictions.
-- **[Tableau — ERCOT Grid Insights](https://public.tableau.com/app/profile/brian.ketchens/viz/ERCOTDashboard_17837275014630/ERCOTGridInsightsEngine)** · A business-intelligence view of the decade of load and weather data, built for exploratory analysis and stakeholder communication.
+### ⚡ Streamlit — Grid Insights Engine
+[![Streamlit dashboard preview](docs/img/streamlit_dashboard.png)](https://ercot-predictive-modelling-pzanfe9eeappdcuqskncsn9.streamlit.app/)
+
+An operations control-room view built on the Phase 2 model: pick any day in the Feb 2024 – Dec 2025 hold-out window and compare actual grid load against the champion LightGBM and baseline Ridge forecasts hour by hour, with a live feature-importance card. All KPIs are computed live from the model's own predictions.
+
+### 📈 Tableau — ERCOT Grid Insights
+[![Tableau dashboard preview](docs/img/tableau_dashboard.png)](https://public.tableau.com/app/profile/brian.ketchens/viz/ERCOTDashboard_17837275014630/ERCOTGridInsightsEngine)
+
+A business-intelligence view of the decade of load and weather data, built for exploratory analysis and stakeholder communication.
 
 ---
 
