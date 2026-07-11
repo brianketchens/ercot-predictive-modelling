@@ -1,0 +1,8 @@
+
+# Tableau artifacts (dashboard is hosted live on Tableau Public)
+*.twb
+*.twbx
+*.twbr
+
+# Generated dashboard export
+data/processed/tableau_grid_export.csv
